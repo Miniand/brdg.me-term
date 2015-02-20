@@ -1,27 +1,38 @@
 package main
 
-import (
-	"code.google.com/p/goncurses"
-)
+import "code.google.com/p/goncurses"
 
 type GameWindow struct {
+	WM     *WindowManager
 	GameID string
 }
 
-func (g *GameWindow) Title() string {
+func (w *GameWindow) Init(wm *WindowManager) {
+	w.WM = wm
+}
+
+func (w *GameWindow) Title() string {
 	return "Zombie Dice"
 }
 
-func (g *GameWindow) Render(ncw *goncurses.Window) {
+func (w *GameWindow) Render(ncw *goncurses.Window) {
 	goncurses.Cursor(0)
-	ncw.Box(0, 0)
+	ncw.Move(0, 0)
+	ncw.Print("BOAH!")
 }
 
-func (g *GameWindow) GotChar(k goncurses.Key) {
-	logger.Printf("Got key: %v", k)
+func (w *GameWindow) GotChar(k1, k2 goncurses.Key) {
+	switch k1 {
+	case 27:
+		if k2 == 0 {
+			// Esc
+			logger.Print("QUIIIT")
+			w.WM.RemoveWindow(w)
+		}
+	}
 }
 
-func (g *GameWindow) KeyInfo() []KeyInfo {
+func (w *GameWindow) KeyInfo() []KeyInfo {
 	return []KeyInfo{
 		{"Arrows", "Scroll"},
 		{"Tab", "Next game"},

@@ -16,9 +16,10 @@ type KeyInfo struct {
 }
 
 type Window interface {
+	Init(wm *WindowManager)
 	Title() string
 	Render(ncw *goncurses.Window)
-	GotChar(k goncurses.Key)
+	GotChar(k1, k2 goncurses.Key)
 	KeyInfo() []KeyInfo
 }
 
@@ -50,7 +51,22 @@ func (wm *WindowManager) CurrentWindow() Window {
 }
 
 func (wm *WindowManager) AddWindow(w Window) {
+	w.Init(wm)
 	wm.WindowStack = append(wm.WindowStack, w)
+	wm.Render()
+}
+
+func (wm *WindowManager) RemoveWindow(w Window) {
+	for i, wsw := range wm.WindowStack {
+		if wsw == w {
+			wm.WindowStack = append(
+				wm.WindowStack[:i],
+				wm.WindowStack[i+1:]...,
+			)
+			wm.Render()
+			return
+		}
+	}
 }
 
 func (wm *WindowManager) Run() {
@@ -75,12 +91,18 @@ func (wm *WindowManager) Run() {
 		}
 	}()
 	for running {
-		c := wm.NCW.GetChar()
-		switch c {
+		k1 := wm.NCW.GetChar()
+		wm.NCW.Timeout(0)
+		k2 := wm.NCW.GetChar()
+		wm.NCW.Timeout(-1)
+		logger.Printf("Got %d %d", k1, k2)
+		switch k1 {
 		case goncurses.KEY_F12:
 			running = false
 		default:
-			wm.WindowStack[0].GotChar(c)
+			if cur := wm.CurrentWindow(); cur != nil {
+				cur.GotChar(k1, k2)
+			}
 		}
 	}
 }
@@ -91,13 +113,18 @@ func (wm *WindowManager) Render() {
 	wm.NCW.Clear()
 	wm.RenderHeader()
 	wm.RenderFooter()
-	wm.WindowStack[0].Render(wm.ContentNCW)
+	if cur := wm.CurrentWindow(); cur != nil {
+		cur.Render(wm.ContentNCW)
+	}
 	wm.NCW.Refresh()
 }
 
 func (wm *WindowManager) RenderHeader() {
 	titlePrefix := ""
-	title := wm.WindowStack[0].Title()
+	title := ""
+	if cur := wm.CurrentWindow(); cur != nil {
+		title = cur.Title()
+	}
 	if title != "" {
 		titlePrefix = " - "
 	}
@@ -120,8 +147,14 @@ func (wm *WindowManager) RenderFooter() {
 
 	wm.NCW.Move(y-1, 0)
 
+	keyInfo := []KeyInfo{}
+	if cur := wm.CurrentWindow(); cur != nil {
+		keyInfo = append(keyInfo, cur.KeyInfo()...)
+	}
+	keyInfo = append(keyInfo, wm.KeyInfo()...)
+
 	wm.NCW.AttrOn(goncurses.A_BOLD)
-	for _, ki := range append(wm.WindowStack[0].KeyInfo(), wm.KeyInfo()...) {
+	for _, ki := range keyInfo {
 		wm.NCW.ColorOn(ColorPairKeyInfoName)
 		wm.NCW.Printf("%s ", ki.Name)
 		wm.NCW.ColorOff(ColorPairKeyInfoName)

@@ -2,19 +2,23 @@ package main
 
 import (
 	"log"
-	"time"
+	"os"
 
 	"code.google.com/p/goncurses"
 )
+
+var logger = log.New(os.Stderr, "", 0)
 
 func main() {
 	window, err := goncurses.Init()
 	if err != nil {
 		log.Fatal("Error initialising ncurses:", err)
 	}
-	goncurses.Echo(false)
-	window.MovePrint(0, 0, "brdg.me")
-	window.Refresh()
 	defer goncurses.End()
-	time.Sleep(3 * time.Second)
+	initColors()
+	goncurses.CBreak(true)
+	goncurses.Echo(false)
+	window.SetBackground(goncurses.ColorPair(ColorPairBackground))
+	window.Keypad(true)
+	NewWindowManager(window).Run()
 }

@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"unsafe"
 
 	"code.google.com/p/goncurses"
 )
@@ -47,7 +48,13 @@ func (wm *WindowManager) Run() {
 		for running {
 			switch <-c {
 			case syscall.SIGWINCH:
-				wm.Render()
+				if w, h, err := GetTerminalSize(); err == nil {
+					wm.renderMut.Lock()
+					wm.NCW.Resize(h, w)
+					wm.ContentNCW.Resize(h-2, w)
+					wm.renderMut.Unlock()
+					wm.Render()
+				}
 			default:
 				running = false
 			}
@@ -117,4 +124,20 @@ func (wm *WindowManager) KeyInfo() []KeyInfo {
 		{"Esc", "Menu"},
 		{"F12", "Quit"},
 	}
+}
+
+func GetTerminalSize() (width, height int, err error) {
+	var dimensions [4]uint16
+	if _, _, err := syscall.Syscall6(
+		syscall.SYS_IOCTL,
+		uintptr(syscall.Stdin),
+		uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(&dimensions)),
+		0,
+		0,
+		0,
+	); err != 0 {
+		return -1, -1, err
+	}
+	return int(dimensions[1]), int(dimensions[0]), nil
 }

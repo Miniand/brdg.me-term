@@ -32,11 +32,25 @@ type WindowManager struct {
 
 func NewWindowManager(ncw *goncurses.Window) *WindowManager {
 	y, x := ncw.MaxYX()
-	return &WindowManager{
+	wm := &WindowManager{
 		NCW:         ncw,
 		ContentNCW:  ncw.Derived(y-2, x, 1, 0),
-		WindowStack: []Window{&GameWindow{}},
+		WindowStack: []Window{},
 	}
+	wm.AddWindow(&MenuWindow{})
+	return wm
+}
+
+func (wm *WindowManager) CurrentWindow() Window {
+	l := len(wm.WindowStack)
+	if l == 0 {
+		return nil
+	}
+	return wm.WindowStack[l-1]
+}
+
+func (wm *WindowManager) AddWindow(w Window) {
+	wm.WindowStack = append(wm.WindowStack, w)
 }
 
 func (wm *WindowManager) Run() {

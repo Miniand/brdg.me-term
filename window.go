@@ -67,9 +67,9 @@ func (wm *WindowManager) Run() {
 func (wm *WindowManager) Render() {
 	wm.renderMut.Lock()
 	defer wm.renderMut.Unlock()
-	goncurses.Cursor(0)
 	wm.NCW.Clear()
 	wm.RenderHeader()
+	wm.RenderFooter()
 	wm.WindowStack[0].Render(wm.ContentNCW)
 	wm.NCW.Refresh()
 }
@@ -91,4 +91,30 @@ func (wm *WindowManager) RenderHeader() {
 }
 
 func (wm *WindowManager) RenderFooter() {
+	y, x := wm.NCW.MaxYX()
+
+	wm.NCW.ColorOn(ColorPairBrdgmeTitle)
+	wm.NCW.HLine(y-1, 0, ' ', x)
+	wm.NCW.ColorOff(ColorPairBrdgmeTitle)
+
+	wm.NCW.Move(y-1, 0)
+
+	wm.NCW.AttrOn(goncurses.A_BOLD)
+	for _, ki := range append(wm.WindowStack[0].KeyInfo(), wm.KeyInfo()...) {
+		wm.NCW.ColorOn(ColorPairKeyInfoName)
+		wm.NCW.Printf("%s ", ki.Name)
+		wm.NCW.ColorOff(ColorPairKeyInfoName)
+
+		wm.NCW.ColorOn(ColorPairKeyInfoInfo)
+		wm.NCW.Printf("%s  ", ki.Info)
+		wm.NCW.ColorOff(ColorPairKeyInfoInfo)
+	}
+	wm.NCW.AttrOff(goncurses.A_BOLD)
+}
+
+func (wm *WindowManager) KeyInfo() []KeyInfo {
+	return []KeyInfo{
+		{"Esc", "Menu"},
+		{"F12", "Quit"},
+	}
 }

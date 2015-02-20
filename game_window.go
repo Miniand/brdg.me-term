@@ -22,5 +22,9 @@ func (g *GameWindow) GotChar(k goncurses.Key) {
 }
 
 func (g *GameWindow) KeyInfo() []KeyInfo {
-	return []KeyInfo{}
+	return []KeyInfo{
+		{"Arrows", "Scroll"},
+		{"F1", "Log"},
+		{"F2", "Cmd list"},
+	}
 }

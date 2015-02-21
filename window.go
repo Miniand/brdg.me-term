@@ -168,7 +168,6 @@ func (wm *WindowManager) RenderFooter() {
 
 func (wm *WindowManager) KeyInfo() []KeyInfo {
 	return []KeyInfo{
-		{"Esc", "Menu"},
 		{"F12", "Quit"},
 	}
 }

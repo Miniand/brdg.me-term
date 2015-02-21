@@ -38,5 +38,6 @@ func (w *GameWindow) KeyInfo() []KeyInfo {
 		{"Tab", "Next game"},
 		{"F1", "Log"},
 		{"F2", "Cmd list"},
+		{"Esc", "Menu"},
 	}
 }

@@ -5,6 +5,17 @@ import "github.com/nsf/termbox-go"
 type GameWindow struct {
 	WM     *WindowManager
 	GameID string
+
+	ShowLog, ShowCommands    bool
+	GameScrollX, GameScrollY int
+}
+
+func NewGameWindow(gameID string) *GameWindow {
+	return &GameWindow{
+		GameID:       gameID,
+		ShowLog:      true,
+		ShowCommands: true,
+	}
 }
 
 func (w *GameWindow) Init(wm *WindowManager) {
@@ -12,15 +23,24 @@ func (w *GameWindow) Init(wm *WindowManager) {
 }
 
 func (w *GameWindow) Title() string {
-	return "Zombie Dice"
+	return w.GameID
 }
 
 func (w *GameWindow) Render() {
+	if w.ShowLog {
+		x := w.WM.SizeX * 2 / 3
+		w.WM.PrintLine('║', x, 1, x, w.WM.SizeY-2,
+			termbox.ColorDefault, termbox.ColorDefault)
+	}
 }
 
 func (w *GameWindow) Event(e termbox.Event) {
-	if e.Type == termbox.EventKey && e.Key == termbox.KeyEsc {
+	switch {
+	case e.Type == termbox.EventKey && e.Key == termbox.KeyEsc:
 		w.WM.RemoveWindow(w)
+	case e.Type == termbox.EventKey && e.Key == termbox.KeyF1:
+		w.ShowLog = !w.ShowLog
+		w.WM.Render()
 	}
 }
 

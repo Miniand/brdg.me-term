@@ -20,9 +20,7 @@ func (w *MenuWindow) Render() {
 
 func (w *MenuWindow) Event(e termbox.Event) {
 	if e.Type == termbox.EventKey && e.Key == termbox.KeyEnter {
-		w.WM.AddWindow(&GameWindow{
-			GameID: "Roll Through the Ages",
-		})
+		w.WM.AddWindow(NewGameWindow("Roll Through the Ages"))
 	}
 }
 

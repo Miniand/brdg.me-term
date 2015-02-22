@@ -6,9 +6,8 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"unsafe"
 
-	"code.google.com/p/goncurses"
+	"github.com/nsf/termbox-go"
 )
 
 type KeyInfo struct {
@@ -18,25 +17,24 @@ type KeyInfo struct {
 type Window interface {
 	Init(wm *WindowManager)
 	Title() string
-	Render(ncw *goncurses.Window)
-	GotChar(k1, k2 goncurses.Key)
+	Render()
+	Event(e termbox.Event)
 	KeyInfo() []KeyInfo
 }
 
 type WindowManager struct {
-	NCW         *goncurses.Window
-	ContentNCW  *goncurses.Window
-	WindowStack []Window
+	WindowStack      []Window
+	CursorX, CursorY int
+	SizeX, SizeY     int
 
 	renderMut sync.Mutex
 }
 
-func NewWindowManager(ncw *goncurses.Window) *WindowManager {
-	y, x := ncw.MaxYX()
+func NewWindowManager() *WindowManager {
+	x, y := termbox.Size()
 	wm := &WindowManager{
-		NCW:         ncw,
-		ContentNCW:  ncw.Derived(y-2, x, 1, 0),
-		WindowStack: []Window{},
+		SizeX: x,
+		SizeY: y,
 	}
 	wm.AddWindow(&MenuWindow{})
 	return wm
@@ -74,34 +72,24 @@ func (wm *WindowManager) Run() {
 	wm.Render()
 	go func() {
 		c := make(chan os.Signal, 1)
-		signal.Notify(c, syscall.SIGWINCH, os.Interrupt, os.Kill)
+		signal.Notify(c, syscall.SIGWINCH)
 		for running {
-			switch <-c {
-			case syscall.SIGWINCH:
-				if w, h, err := GetTerminalSize(); err == nil {
-					wm.renderMut.Lock()
-					wm.NCW.Resize(h, w)
-					wm.ContentNCW.Resize(h-2, w)
-					wm.renderMut.Unlock()
-					wm.Render()
-				}
-			default:
-				running = false
-			}
+			<-c
+			termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+			x, y := termbox.Size()
+			wm.SizeX = x
+			wm.SizeY = y
+			wm.Render()
 		}
 	}()
+	wm.Render()
 	for running {
-		k1 := wm.NCW.GetChar()
-		wm.NCW.Timeout(0)
-		k2 := wm.NCW.GetChar()
-		wm.NCW.Timeout(-1)
-		logger.Printf("Got %d %d", k1, k2)
-		switch k1 {
-		case goncurses.KEY_F12:
+		e := termbox.PollEvent()
+		if e.Type == termbox.EventKey && e.Key == termbox.KeyF12 {
 			running = false
-		default:
-			if cur := wm.CurrentWindow(); cur != nil {
-				cur.GotChar(k1, k2)
+		} else {
+			if c := wm.CurrentWindow(); c != nil {
+				c.Event(e)
 			}
 		}
 	}
@@ -110,13 +98,13 @@ func (wm *WindowManager) Run() {
 func (wm *WindowManager) Render() {
 	wm.renderMut.Lock()
 	defer wm.renderMut.Unlock()
-	wm.NCW.Clear()
+	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	wm.RenderHeader()
 	wm.RenderFooter()
-	if cur := wm.CurrentWindow(); cur != nil {
-		cur.Render(wm.ContentNCW)
+	if c := wm.CurrentWindow(); c != nil {
+		c.Render()
 	}
-	wm.NCW.Refresh()
+	termbox.Flush()
 }
 
 func (wm *WindowManager) RenderHeader() {
@@ -128,24 +116,19 @@ func (wm *WindowManager) RenderHeader() {
 	if title != "" {
 		titlePrefix = " - "
 	}
-	fullTitle := fmt.Sprintf(" brdg.me%s%s ", titlePrefix, title)
-	_, x := wm.NCW.MaxYX()
-	wm.NCW.AttrOn(goncurses.A_BOLD)
-	wm.NCW.ColorOn(ColorPairBrdgmeTitle)
-	wm.NCW.HLine(0, 0, ' ', x)
-	wm.NCW.MovePrintf(0, (x-len(fullTitle))/2, fullTitle)
-	wm.NCW.ColorOff(ColorPairBrdgmeTitle)
-	wm.NCW.AttrOff(goncurses.A_BOLD)
+	fullTitle := fmt.Sprintf("brdg.me%s%s", titlePrefix, title)
+
+	wm.PrintHLine(' ', 0, termbox.ColorDefault, termbox.ColorBlack)
+	wm.CursorX = (wm.SizeX - len(fullTitle)) / 2
+	wm.CursorY = 0
+	wm.Print(fullTitle, termbox.ColorGreen|termbox.AttrBold, termbox.ColorBlack)
 }
 
 func (wm *WindowManager) RenderFooter() {
-	y, x := wm.NCW.MaxYX()
+	wm.PrintHLine(' ', wm.SizeY-1, termbox.ColorDefault, termbox.ColorBlack)
 
-	wm.NCW.ColorOn(ColorPairBrdgmeTitle)
-	wm.NCW.HLine(y-1, 0, ' ', x)
-	wm.NCW.ColorOff(ColorPairBrdgmeTitle)
-
-	wm.NCW.Move(y-1, 0)
+	wm.CursorX = 0
+	wm.CursorY = wm.SizeY - 1
 
 	keyInfo := []KeyInfo{}
 	if cur := wm.CurrentWindow(); cur != nil {
@@ -153,17 +136,43 @@ func (wm *WindowManager) RenderFooter() {
 	}
 	keyInfo = append(keyInfo, wm.KeyInfo()...)
 
-	wm.NCW.AttrOn(goncurses.A_BOLD)
 	for _, ki := range keyInfo {
-		wm.NCW.ColorOn(ColorPairKeyInfoName)
-		wm.NCW.Printf("%s ", ki.Name)
-		wm.NCW.ColorOff(ColorPairKeyInfoName)
-
-		wm.NCW.ColorOn(ColorPairKeyInfoInfo)
-		wm.NCW.Printf("%s  ", ki.Info)
-		wm.NCW.ColorOff(ColorPairKeyInfoInfo)
+		wm.Print(fmt.Sprintf("%s ", ki.Name),
+			termbox.ColorYellow|termbox.AttrBold, termbox.ColorBlack)
+		wm.Print(fmt.Sprintf("%s  ", ki.Info),
+			termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlack)
 	}
-	wm.NCW.AttrOff(goncurses.A_BOLD)
+}
+
+func (wm *WindowManager) Print(input string, fg, bg termbox.Attribute) {
+	for _, r := range input {
+		wm.PrintRune(r, fg, bg)
+	}
+}
+
+func (wm *WindowManager) PrintRune(r rune, fg, bg termbox.Attribute) {
+	termbox.SetCell(wm.CursorX, wm.CursorY, r, fg, bg)
+	wm.CursorX++
+}
+
+func (wm *WindowManager) PrintLine(r rune, x1, y1, x2, y2 int, fg, bg termbox.Attribute) {
+	steps := max(abs(x2-x1), abs(y2-y1))
+	xPer := float64(x2-x1) / float64(steps)
+	yPer := float64(y2-y1) / float64(steps)
+	for i := 0; i <= steps; i++ {
+		termbox.SetCell(
+			x1+int(xPer*float64(i)+0.5),
+			y1+int(yPer*float64(i)+0.5),
+			r, fg, bg)
+	}
+}
+
+func (wm *WindowManager) PrintVLine(r rune, x int, fg, bg termbox.Attribute) {
+	wm.PrintLine(r, x, 0, x, wm.SizeY-1, fg, bg)
+}
+
+func (wm *WindowManager) PrintHLine(r rune, y int, fg, bg termbox.Attribute) {
+	wm.PrintLine(r, 0, y, wm.SizeX-1, y, fg, bg)
 }
 
 func (wm *WindowManager) KeyInfo() []KeyInfo {
@@ -172,18 +181,30 @@ func (wm *WindowManager) KeyInfo() []KeyInfo {
 	}
 }
 
-func GetTerminalSize() (width, height int, err error) {
-	var dimensions [4]uint16
-	if _, _, err := syscall.Syscall6(
-		syscall.SYS_IOCTL,
-		uintptr(syscall.Stdin),
-		uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(&dimensions)),
-		0,
-		0,
-		0,
-	); err != 0 {
-		return -1, -1, err
+func abs(i int) int {
+	if i < 0 {
+		return -i
 	}
-	return int(dimensions[1]), int(dimensions[0]), nil
+	return i
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func unit(i int) int {
+	if i == 0 {
+		return 0
+	}
+	return abs(i) / i
 }

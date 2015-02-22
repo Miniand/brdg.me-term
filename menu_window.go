@@ -1,8 +1,6 @@
 package main
 
-import (
-	"code.google.com/p/goncurses"
-)
+import "github.com/nsf/termbox-go"
 
 type MenuWindow struct {
 	WM       *WindowManager
@@ -17,14 +15,14 @@ func (w *MenuWindow) Title() string {
 	return "Menu"
 }
 
-func (w *MenuWindow) Render(ncw *goncurses.Window) {
+func (w *MenuWindow) Render() {
 }
 
-func (w *MenuWindow) GotChar(k1, k2 goncurses.Key) {
-	switch k1 {
-	case '\n':
-		logger.Print("GAAAAME")
-		w.WM.AddWindow(&GameWindow{})
+func (w *MenuWindow) Event(e termbox.Event) {
+	if e.Type == termbox.EventKey && e.Key == termbox.KeyEnter {
+		w.WM.AddWindow(&GameWindow{
+			GameID: "Roll Through the Ages",
+		})
 	}
 }
 

@@ -16,6 +16,7 @@ func (w *MenuWindow) Title() string {
 }
 
 func (w *MenuWindow) Render() {
+	termbox.HideCursor()
 }
 
 func (w *MenuWindow) Event(e termbox.Event) {

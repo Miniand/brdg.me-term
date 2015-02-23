@@ -7,6 +7,10 @@ type MenuWindow struct {
 	Selected int
 }
 
+func NewMenuWindow() *MenuWindow {
+	return &MenuWindow{}
+}
+
 func (w *MenuWindow) Init(wm *WindowManager) {
 	w.WM = wm
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -36,8 +37,27 @@ func NewWindowManager() *WindowManager {
 		SizeX: x,
 		SizeY: y,
 	}
-	wm.AddWindow(&MenuWindow{})
+	if Token != "" {
+		wm.AddWindow(NewMenuWindow())
+	} else {
+		wm.LogOut()
+	}
 	return wm
+}
+
+func (wm *WindowManager) LogOut() {
+	Token = ""
+	if ConfigDir != "" {
+		if err := SaveConfig(); err != nil {
+			log.Printf("Could not save config, %v", err)
+		}
+	}
+	wm.ClearWindows()
+	wm.AddWindow(NewAuthWindow())
+}
+
+func (wm *WindowManager) ClearWindows() {
+	wm.WindowStack = []Window{}
 }
 
 func (wm *WindowManager) CurrentWindow() Window {

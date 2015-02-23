@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os/user"
 	"path"
@@ -18,30 +17,6 @@ var (
 
 	ConfigDir string
 )
-
-func HTTPBase() string {
-	proto := "http"
-	if SSL {
-		proto = "https"
-	}
-	return fmt.Sprintf("%s://%s", proto, Server)
-}
-
-func HTTPUrl(path string) string {
-	return fmt.Sprintf("%s%s", HTTPBase(), path)
-}
-
-func WSBase() string {
-	proto := "ws"
-	if SSL {
-		proto = "wss"
-	}
-	return fmt.Sprintf("%s://%s", proto, Server)
-}
-
-func WSUrl(path string) string {
-	return fmt.Sprintf("%s%s", WSBase(), path)
-}
 
 func main() {
 	flag.StringVar(&Server, "server", "api.brdg.me",

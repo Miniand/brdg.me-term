@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"regexp"
 	"sync"
 	"syscall"
 
@@ -25,6 +27,8 @@ type Window interface {
 
 type WindowManager struct {
 	WindowStack      []Window
+	ColourStack      []string
+	BoldStack        int
 	CursorX, CursorY int
 	SizeX, SizeY     int
 
@@ -34,8 +38,10 @@ type WindowManager struct {
 func NewWindowManager() *WindowManager {
 	x, y := termbox.Size()
 	wm := &WindowManager{
-		SizeX: x,
-		SizeY: y,
+		WindowStack: []Window{},
+		ColourStack: []string{},
+		SizeX:       x,
+		SizeY:       y,
 	}
 	if Token != "" {
 		wm.AddWindow(NewMenuWindow())
@@ -164,9 +170,42 @@ func (wm *WindowManager) RenderFooter() {
 	}
 }
 
+var actionRegexp = regexp.MustCompile(`^\{\{([_a-z]+)(\s+['"]?(.+?)['"]?)?\}\}`)
+
 func (wm *WindowManager) Print(input string, fg, bg termbox.Attribute) {
-	for _, r := range input {
-		wm.PrintRune(r, fg, bg)
+	runes := bytes.Runes([]byte(input))
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r == '{' {
+			// Read ahead and see if it's for formatting.
+			if match := actionRegexp.FindStringSubmatch(string(runes[i:])); match != nil {
+				// Skip
+				i += len(bytes.Runes([]byte(match[0]))) - 1
+				switch match[1] {
+				case "b":
+					wm.BoldStack++
+				case "_b":
+					wm.BoldStack--
+				case "c":
+					wm.ColourStack = append(wm.ColourStack, match[3])
+				case "_c":
+					if l := len(wm.ColourStack); l > 0 {
+						wm.ColourStack = wm.ColourStack[:l-1]
+					}
+				}
+				continue
+			}
+		}
+		f := fg
+		if l := len(wm.ColourStack); l > 0 {
+			if c, ok := Colours[wm.ColourStack[l-1]]; ok {
+				f = c
+			}
+		}
+		if wm.BoldStack > 0 {
+			f |= termbox.AttrBold
+		}
+		wm.PrintRune(r, f, bg)
 	}
 }
 
